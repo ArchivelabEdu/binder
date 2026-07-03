@@ -29,7 +29,7 @@ class ApiAipsFilesAction extends QubitApiAction
     $this->prepareEsPagination($query);
     $this->prepareEsSorting($query, array(
       'name' => 'i18n.' . $this->context->user->getCulture() . '.title.untouched',
-      'size' => 'byteSize'));
+      'size' => 'digitalObject.byteSize'));
 
     $queryBool->addMust(new \Elastica\Query\Term(array('aipUuid' => $request->uuid)));
     $queryBool->addMust(new \Elastica\Query\Term(array('levelOfDescriptionId' => sfConfig::get('app_drmc_lod_digital_object_id'))));

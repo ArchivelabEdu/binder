@@ -323,57 +323,68 @@ EOF;
     // Fake AIPs, see qtPackageExtractorMETSArchivematicaDIP::addAip()
     foreach ($data['aips'] as $item)
     {
-      if (null !== QubitAip::getByUuid($item['uuid']))
-      {
-        continue;
-      }
-
       $component = $componentsByIdentifier[$item['component']];
 
       // Intermediate 'AIP' information object under the component
-      $aipIo = new QubitInformationObject;
-      $aipIo->parentId = $component->id;
-      $aipIo->levelOfDescriptionId = sfConfig::get('app_drmc_lod_aip_id');
-      $aipIo->setPublicationStatusByName('Published');
-      $aipIo->title = $item['filename'];
-      $aipIo->indexOnSave = false;
-      $aipIo->save();
-
-      $aip = new QubitAip;
-      $aip->uuid = $item['uuid'];
-      $aip->filename = $item['filename'];
-      $aip->digitalObjectCount = $item['digitalObjectCount'];
-      $aip->partOf = $artwork->id;
-      $aip->sizeOnDisk = $item['sizeOnDisk'];
-      $aip->createdAt = $item['createdAt'];
-      $aip->typeId = QubitTerm::ARTWORK_COMPONENT_ID;
-      $aip->indexOnSave = false;
-      $aip->save();
-
-      QubitProperty::addUnique($aip->id, 'ingestionUser', 'demo', array('indexOnSave' => false));
-      QubitProperty::addUnique($aip->id, 'attachedTo', $component->getTitle(array('sourceCulture' => true)), array('indexOnSave' => false));
-
-      // AIP <-> component and AIP <-> artwork relations (subject = aip)
-      foreach (array($component->id, $artwork->id) as $objectId)
+      $criteria = new Criteria;
+      $criteria->add(QubitInformationObject::PARENT_ID, $component->id);
+      $criteria->add(QubitInformationObject::LEVEL_OF_DESCRIPTION_ID, sfConfig::get('app_drmc_lod_aip_id'));
+      if (null === $aipIo = QubitInformationObject::getOne($criteria))
       {
-        $relation = new QubitRelation;
-        $relation->objectId = $objectId;
-        $relation->subjectId = $aip->id;
-        $relation->typeId = QubitTerm::AIP_RELATION_ID;
-        $relation->indexOnSave = false;
-        $relation->save();
+        $aipIo = new QubitInformationObject;
+        $aipIo->parentId = $component->id;
+        $aipIo->levelOfDescriptionId = sfConfig::get('app_drmc_lod_aip_id');
+        $aipIo->setPublicationStatusByName('Published');
+        $aipIo->title = $item['filename'];
+        $aipIo->indexOnSave = false;
+        $aipIo->save();
+      }
+
+      if (null === QubitAip::getByUuid($item['uuid']))
+      {
+        $aip = new QubitAip;
+        $aip->uuid = $item['uuid'];
+        $aip->filename = $item['filename'];
+        $aip->digitalObjectCount = $item['digitalObjectCount'];
+        $aip->partOf = $artwork->id;
+        $aip->sizeOnDisk = $item['sizeOnDisk'];
+        $aip->createdAt = $item['createdAt'];
+        $aip->typeId = QubitTerm::ARTWORK_COMPONENT_ID;
+        $aip->indexOnSave = false;
+        $aip->save();
+
+        QubitProperty::addUnique($aip->id, 'ingestionUser', 'demo', array('indexOnSave' => false));
+        QubitProperty::addUnique($aip->id, 'attachedTo', $component->getTitle(array('sourceCulture' => true)), array('indexOnSave' => false));
+
+        // AIP <-> component and AIP <-> artwork relations (subject = aip)
+        foreach (array($component->id, $artwork->id) as $objectId)
+        {
+          $relation = new QubitRelation;
+          $relation->objectId = $objectId;
+          $relation->subjectId = $aip->id;
+          $relation->typeId = QubitTerm::AIP_RELATION_ID;
+          $relation->indexOnSave = false;
+          $relation->save();
+        }
       }
 
       // Optional file objects (fill the AIP files tab)
       foreach ($item['files'] as $file)
       {
-        $fileIo = new QubitInformationObject;
-        $fileIo->parentId = $aipIo->id;
-        $fileIo->levelOfDescriptionId = sfConfig::get('app_drmc_lod_digital_object_id');
-        $fileIo->setPublicationStatusByName('Published');
-        $fileIo->title = $file['title'];
-        $fileIo->indexOnSave = false;
-        $fileIo->save();
+        $criteria = new Criteria;
+        $criteria->add(QubitInformationObject::PARENT_ID, $aipIo->id);
+        $criteria->addJoin(QubitInformationObject::ID, QubitInformationObjectI18n::ID);
+        $criteria->add(QubitInformationObjectI18n::TITLE, $file['title']);
+        if (null === $fileIo = QubitInformationObject::getOne($criteria))
+        {
+          $fileIo = new QubitInformationObject;
+          $fileIo->parentId = $aipIo->id;
+          $fileIo->levelOfDescriptionId = sfConfig::get('app_drmc_lod_digital_object_id');
+          $fileIo->setPublicationStatusByName('Published');
+          $fileIo->title = $file['title'];
+          $fileIo->indexOnSave = false;
+          $fileIo->save();
+        }
 
         $this->addOrUpdateProperty($fileIo, 'aipUUID', $item['uuid']);
         $this->addOrUpdateProperty($fileIo, 'original_relative_path_within_aip', $file['path']);
@@ -392,7 +403,11 @@ EOF;
     }
     else
     {
+      // addProperty only queues the property; it is persisted on the next
+      // save() of the information object (QubitInformationObject.php:844)
       $io->addProperty($name, $value);
+      $io->indexOnSave = false;
+      $io->save();
     }
   }
 

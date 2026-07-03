@@ -45,8 +45,8 @@ class ApiActorsBrowseAction extends QubitApiAction
       $queryBool->addMust($queryString);
     }
 
-    // Limit fields
-    $query->setFields(array(
+    // Limit fields (setFields was removed in Elastica 5.x; limit _source instead)
+    $query->setSource(array(
       'slug',
       'createdAt',
       'updatedAt',

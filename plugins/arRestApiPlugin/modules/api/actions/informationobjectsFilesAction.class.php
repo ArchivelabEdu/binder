@@ -30,7 +30,7 @@ class ApiInformationObjectsFilesAction extends QubitApiAction
     $titleField = 'i18n.' . $this->context->user->getCulture() . '.title.untouched';
     $this->prepareEsSorting(
       $query,
-      array('name' => $titleField, 'size' => 'byteSize'),
+      array('name' => $titleField, 'size' => 'digitalObject.byteSize'),
       array($titleField => 'asc')
     );
 
