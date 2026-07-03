@@ -138,11 +138,15 @@ docker run --rm --platform linux/amd64 -v "$PWD/../../..":/repo -w /repo/plugins
 
 ### Next steps (post-spike)
 
-1. Seed demo artwork/AIP data without Archivematica (fixtures or REST API) so the context
-   browser, artwork records, and reports can be exercised — the UI's crown jewels.
-2. Apply confirmed fixes from `docs-spike/es56-audit.md` (if any block browse/API paths).
+1. ✅ **Done** — `php symfony binder:seed-demo` seeds 3 artworks + components + tech record +
+   fake AIPs (spec: `docs-spike/seed-demo-spec.md`). Verified: works browse with facets, work
+   view TMS panel, context browser graph, AIP detail + file list all render.
+2. ✅ **Done (P1)** — the four API-blocking Elastica 5.x fixes from `docs-spike/es56-audit.md`
+   are applied and verified. P2 (legacy AtoM server-rendered browse pages) remains open —
+   cheap option is to 404 those routes; the DRMC Angular UI does not use them.
 3. Ship font-awesome; decide LDAP-off auth story (works already via QubitUser).
 4. Only then decide how much of Archivematica to revive vs. mock (DIP upload path).
+5. Reports pages + fixity dashboard exercise paths not yet tested — next verification target.
 
 ### Deliverable
 This table filled in + effort estimate + recommendation on whether full Phase 1 (faithful
