@@ -32,10 +32,10 @@ class ApiFixityBrowseAction extends QubitApiAction
 
     if (isset($this->request->uuid))
     {
-      $queryText = new \Elastica\Query\QueryString($this->request->uuid);
-      $queryText->setFields(array('uuid'));
-
-      $queryBool->addMust($queryText);
+      // The AIP uuid lives at aip.uuid (keyword) in the QubitFixityReport
+      // documents; a QueryString on 'uuid' never matches (no such field, and
+      // the hyphens would be parsed as operators anyway).
+      $queryBool->addMust(new \Elastica\Query\Term(array('aip.uuid' => $this->request->uuid)));
     }
     else
     {
@@ -73,8 +73,10 @@ class ApiFixityBrowseAction extends QubitApiAction
 
         $recovery = arRestApiPluginUtils::getMostRecentAipRecoveryAttempt($doc['aip']['id']);
 
-        // If info for a specific AIP is being requested, add last recovery's details to feed
-        if (isset($this->request->uuid) && !isset($data['last_recovery']['message']))
+        // If info for a specific AIP is being requested, add last recovery's
+        // details to feed. No recovery may exist yet (getMostRecentAipRecoveryAttempt
+        // returns null) — the frontend expects these keys to be absent in that case.
+        if (isset($this->request->uuid) && !isset($data['last_recovery']['message']) && null !== $recovery)
         {
           $data['last_recovery']['message'] = $recovery->message;
           $data['last_recovery']['time_started'] = $recovery->timeStarted;

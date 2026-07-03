@@ -33,15 +33,32 @@ services:
     image: memcached:1.5
     platform: linux/amd64
 
+  ss:
+    # Archivematica Storage Service — the component Binder actually talks to
+    # (AIP download/recovery via /api/v2). SQLite: SS v0.24 is Django 4.2 and
+    # would demand MySQL >= 8, which we don't want alongside mysql:5.6.
+    image: artefactual/archivematica-storage-service:v0.24.0
+    platform: linux/amd64
+    environment:
+      SS_DB_URL: "sqlite:////var/archivematica/storage_service/storage_service.db"
+      DJANGO_SECRET_KEY: "binder-spike-dev-secret"
+      DJANGO_ALLOWED_HOSTS: "*"
+      SESSION_COOKIE_SECURE: "false"
+      CSRF_COOKIE_SECURE: "false"
+    volumes:
+      - ss-data:/var/archivematica/storage_service
+      - ./ss-home:/home
+    ports: ["8001:8000"]
+
   app:
     build:
       context: ..
       dockerfile: docker/app/Dockerfile
     platform: linux/amd64
     environment:
-      # Mandatory even without a real Archivematica (CLI aborts otherwise) —
-      # dummy values for the decoupled spike.
-      ARCHIVEMATICA_SS_HOST: "127.0.0.1"
+      # Points at the ss compose service; the pipeline UUID, user and API key
+      # below are registered in the storage service by docker/ss-bootstrap.sh.
+      ARCHIVEMATICA_SS_HOST: "ss"
       ARCHIVEMATICA_SS_PORT: "8000"
       ARCHIVEMATICA_SS_PIPELINE_UUID: "00000000-0000-0000-0000-000000000000"
       ARCHIVEMATICA_SS_USER: "spike"
@@ -62,3 +79,4 @@ services:
 
 volumes:
   db-data:
+  ss-data:

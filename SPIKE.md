@@ -151,12 +151,24 @@ docker run --rm --platform linux/amd64 -v "$PWD/../../..":/repo -w /repo/plugins
    component-level reports, TMS lookup page all render. 59 GET endpoints probed → 51 OK,
    0 real code bugs (8 failures = required-param validation or absent demo data:
    METS/premis and saved queries only exist after real Archivematica ingest).
-5. **Open — P2**: legacy AtoM server-rendered routes (non-/drmc pages) still use removed
-   Elastica Facet/Filter APIs → fatal if visited. DRMC Angular UI unaffected. Options:
-   404 those routes (cheap) or port to aggregations (`docs-spike/es56-audit.md` P2 list).
-6. **Open**: LDAP-off auth story (email login works via QubitUser); Archivematica
-   revive-vs-mock decision (DIP upload path); fixity data needs a storage service (or a
-   mock that POSTs to /api/fixity endpoints).
+5. ✅ **Done — P2**: legacy AtoM server-rendered routes are 404ed at nginx (default-deny;
+   only /drmc, /api and assets exposed). Porting them to aggregations stays optional
+   (`docs-spike/es56-audit.md` P2 list).
+6. ✅ **Done — Storage Service integration**: real Archivematica Storage Service v0.24.0
+   runs as the `ss` compose service (SQLite). `docker/ss-bootstrap.sh` registers the
+   spike user/API key, the pipeline UUID Binder is configured with, an FS space +
+   transfer-source/AIP-storage locations, and the three seeded AIP UUIDs as uncompressed
+   BagIt bags (no pointer file needed; SS can genuinely fixity-check them).
+   Verified end-to-end: Binder `downloadCheck` → `available:true`; full AIP download
+   proxied through Binder returns the bag as tar; `docker/fixity-scan.sh` runs real
+   BagIt validation in SS and reports to `/api/fixity/<uuid>` (same protocol as
+   artefactual's `fixity` tool) → dashboard fixity widget + AIP-page report table
+   show live data. Two fixityBrowse bugs fixed along the way (ES field `aip.uuid`,
+   null last-recovery crash).
+7. **Open**: AIP *recovery* flow end-to-end (Binder POST → SS 202 → admin approval in
+   SS UI → `/api/recover/results` callback); LDAP-off auth story (email login already
+   works via QubitUser); full Archivematica pipeline (DIP upload → new artworks) —
+   the only remaining unexercised integration.
 
 ### Deliverable
 This table filled in + effort estimate + recommendation on whether full Phase 1 (faithful
