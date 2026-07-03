@@ -1,0 +1,64 @@
+# Binder revival spike — decoupled from Archivematica.
+# Only the AtoM/PHP app + its direct data deps. macOS arm64 → amd64 images emulated.
+name: binder-spike
+
+services:
+  db:
+    image: mysql:5.6
+    platform: linux/amd64
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: binder
+    command: --character-set-server=utf8 --collation-server=utf8_unicode_ci
+    ports: ["13306:3306"]
+    volumes: ["db-data:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  es:
+    # qa/0.9.x tracks AtoM 2.5.x-era code → Elasticsearch 5.6 (keyword/text
+    # mappings, modern Elastica). NOT the 2014-era ES 0.90/1.x from the install gist.
+    image: docker.elastic.co/elasticsearch/elasticsearch:5.6.16
+    platform: linux/amd64
+    environment:
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+    ports: ["19200:9200"]
+
+  memcached:
+    image: memcached:1.5
+    platform: linux/amd64
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/app/Dockerfile
+    platform: linux/amd64
+    environment:
+      # Mandatory even without a real Archivematica (CLI aborts otherwise) —
+      # dummy values for the decoupled spike.
+      ARCHIVEMATICA_SS_HOST: "127.0.0.1"
+      ARCHIVEMATICA_SS_PORT: "8000"
+      ARCHIVEMATICA_SS_PIPELINE_UUID: "00000000-0000-0000-0000-000000000000"
+      ARCHIVEMATICA_SS_USER: "spike"
+      ARCHIVEMATICA_SS_API_KEY: "spike"
+      # TMS (MoMA collection system) — also mandatory; dummy for the spike.
+      ATOM_DRMC_TMS_URL: "http://tms.invalid"
+      ATOM_DRMC_TMS_VERSION: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+      es:
+        condition: service_started
+      memcached:
+        condition: service_started
+    volumes:
+      - ..:/app
+    ports: ["8090:80"]  # 8080 is taken by another docker service on this host
+
+volumes:
+  db-data:
