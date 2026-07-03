@@ -144,9 +144,19 @@ docker run --rm --platform linux/amd64 -v "$PWD/../../..":/repo -w /repo/plugins
 2. ✅ **Done (P1)** — the four API-blocking Elastica 5.x fixes from `docs-spike/es56-audit.md`
    are applied and verified. P2 (legacy AtoM server-rendered browse pages) remains open —
    cheap option is to 404 those routes; the DRMC Angular UI does not use them.
-3. Ship font-awesome; decide LDAP-off auth story (works already via QubitUser).
-4. Only then decide how much of Archivematica to revive vs. mock (DIP upload path).
-5. Reports pages + fixity dashboard exercise paths not yet tested — next verification target.
+3. ✅ **Done** — Font Awesome 3.2.1 vendored at `plugins/vendor/fonts/font-awesome/` (the
+   path `arDominionPlugin/css/main.css` imports); icons render everywhere.
+4. ✅ **Done** — full UI walk + GET API sweep (`docs-spike/api-sweep.md`): dashboard with
+   charts, components/files/tech-records/saved-searches browses, granular-ingest and
+   component-level reports, TMS lookup page all render. 59 GET endpoints probed → 51 OK,
+   0 real code bugs (8 failures = required-param validation or absent demo data:
+   METS/premis and saved queries only exist after real Archivematica ingest).
+5. **Open — P2**: legacy AtoM server-rendered routes (non-/drmc pages) still use removed
+   Elastica Facet/Filter APIs → fatal if visited. DRMC Angular UI unaffected. Options:
+   404 those routes (cheap) or port to aggregations (`docs-spike/es56-audit.md` P2 list).
+6. **Open**: LDAP-off auth story (email login works via QubitUser); Archivematica
+   revive-vs-mock decision (DIP upload path); fixity data needs a storage service (or a
+   mock that POSTs to /api/fixity endpoints).
 
 ### Deliverable
 This table filled in + effort estimate + recommendation on whether full Phase 1 (faithful
