@@ -26,7 +26,13 @@ services:
     environment:
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"
       discovery.type: single-node
+      # X-Pack extras (watcher/ML/monitoring) OOM-killed the 512MB heap under
+      # emulation — disable everything but core search.
       xpack.security.enabled: "false"
+      xpack.ml.enabled: "false"
+      xpack.watcher.enabled: "false"
+      xpack.monitoring.enabled: "false"
+    volumes: ["es-data:/usr/share/elasticsearch/data"]
     ports: ["19200:9200"]
 
   memcached:
@@ -79,4 +85,5 @@ services:
 
 volumes:
   db-data:
+  es-data:
   ss-data:

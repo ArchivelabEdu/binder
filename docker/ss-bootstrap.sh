@@ -119,3 +119,15 @@ curl -s -o /dev/null -w "    pipeline:  HTTP %{http_code}\n" "$SS/api/v2/pipelin
 curl -s -o /dev/null -L -w "    download:  HTTP %{http_code} (%{size_download} bytes)\n" "$SS/api/v2/file/6f198fa9-3fa5-43ab-b0b6-8f8db2f31a52/download/" -H "$AUTH"
 curl -s -L "$SS/api/v2/file/6f198fa9-3fa5-43ab-b0b6-8f8db2f31a52/check_fixity/?format=json" -H "$AUTH" | head -c 200; echo
 echo 'Done.'
+
+# --- AIP recovery support (idempotent) -------------------------------------
+echo '==> recovery callback settings + AR location'
+docker compose exec -T ss pyenv exec python3 -m archivematica.storage_service.manage shell -c "
+from archivematica.storage_service.common import utils
+utils.set_setting('recover_request_notification_url', 'http://app/api/recover/results')
+utils.set_setting('recover_request_notification_auth_username', 'demo@example.com')
+utils.set_setting('recover_request_notification_auth_password', 'demo')
+print('    callback:', utils.get_setting('recover_request_notification_url'))"
+AR=$(get_or_create_location AR aip_recovery "Binder spike AIP recovery")
+mkdir -p ss-home/aip_recovery && chmod -R 777 ss-home/aip_recovery
+echo "    aip_recovery $AR"

@@ -47,7 +47,10 @@ class ApiRecoverRequestAction extends QubitApiAction
 
     $postData = array(
       "event_reason" => 'Request from Binder',
-      "pipeline" => $client->config['ARCHIVEMATICA_SS_PIPELINE_UUID'],
+      // QubitApiStorageServiceClient has no $config property — the pipeline
+      // UUID lives in sfConfig (set from ARCHIVEMATICA_SS_PIPELINE_UUID) and
+      // the storage service rejects the request when pipeline is null.
+      "pipeline" => sfConfig::get('app_drmc_ss_pipeline_uuid'),
       "user_id" => $this->context->user->getUserID(),
       "user_email" => $this->context->user->user->email
     );

@@ -165,10 +165,18 @@ docker run --rm --platform linux/amd64 -v "$PWD/../../..":/repo -w /repo/plugins
    artefactual's `fixity` tool) → dashboard fixity widget + AIP-page report table
    show live data. Two fixityBrowse bugs fixed along the way (ES field `aip.uuid`,
    null last-recovery crash).
-7. **Open**: AIP *recovery* flow end-to-end (Binder POST → SS 202 → admin approval in
-   SS UI → `/api/recover/results` callback); LDAP-off auth story (email login already
-   works via QubitUser); full Archivematica pipeline (DIP upload → new artworks) —
-   the only remaining unexercised integration.
+7. ✅ **Done — AIP recovery end-to-end**: corrupted a stored bag → SS fixity scan caught it
+   (real Payload-Oxum diagnostic) → failure reported to Binder → Binder
+   `POST /api/recover/<report-id>` → SS RECOVER_REQ (fixed `recoverRequestAction`: it read
+   a nonexistent `$client->config` for the pipeline UUID → SS 500) → admin approval in the
+   SS web UI → bag restored from the AR location → SS callback to `/api/recover/results`
+   (configured via `recover_request_notification_*` settings in ss-bootstrap.sh) →
+   Binder recovery record completed → re-scan Success. The AIP page shows the full story:
+   Success → Failed×2 → AIP recovery (APPROVE) → Success.
+   Ops note: ES needed X-Pack extras disabled + a data volume (watcher/ML OOM-killed the
+   512MB heap; recreation wiped the unvolumed index).
+8. **Open**: full Archivematica pipeline (DIP upload → new artworks) — the only remaining
+   unexercised integration; LDAP-off auth story (email login already works via QubitUser).
 
 ### Deliverable
 This table filled in + effort estimate + recommendation on whether full Phase 1 (faithful
