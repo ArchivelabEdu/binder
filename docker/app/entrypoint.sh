@@ -9,9 +9,9 @@ if [ ! -f apps/qubit/config/settings.yml ]; then
     apps/qubit/config/settings.yml.tmpl > apps/qubit/config/settings.yml
 fi
 
-# Point sfMemcacheCache at the compose service (defaults to localhost).
-if [ ! -f apps/qubit/config/app.yml ]; then
-  cat > apps/qubit/config/app.yml <<'YML'
+# Point sfMemcacheCache and gearman at their compose services (defaults are
+# localhost). Regenerated on every boot — these are dev-only overrides.
+cat > apps/qubit/config/app.yml <<'YML'
 all:
   cache_engine:
     class: sfMemcacheCache
@@ -19,8 +19,21 @@ all:
       storeCacheInfo: true
       host: memcached
       port: 11211
+  gearman_job_server: gearmand:4730
+  # SWORD deposits by reference (Content-Location file://<basename>) resolve
+  # under this dir — a shared bind mount so app and worker see the same path.
+  sword_deposit_dir: /app/uploads/sword-deposits
 YML
-fi
+
+cat > apps/qubit/config/gearman.yml <<'YML'
+all:
+  server:
+    default:
+      host: gearmand
+      port: 4730
+  worker:
+    sword: [qtSwordPluginWorker]
+YML
 
 # Point Elastica at the compose ES service (plugin default is 127.0.0.1).
 if [ ! -f config/search.yml ]; then
@@ -32,8 +45,10 @@ all:
 YML
 fi
 
-# Symfony needs these writable.
+# Symfony needs these writable. Clear stale config caches: the overrides
+# regenerated above are compiled into cache/ and would otherwise stick.
 mkdir -p cache log uploads downloads
+rm -rf cache/qubit
 chmod -R 0777 cache log uploads downloads 2>/dev/null || true
 
 # Let container env (ARCHIVEMATICA_SS_*, etc.) reach php-fpm workers.

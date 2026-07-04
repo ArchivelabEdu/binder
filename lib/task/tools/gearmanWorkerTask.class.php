@@ -58,8 +58,8 @@ EOF;
     // Unset default net_gearman prefix for jobs
     define('NET_GEARMAN_JOB_CLASS_PREFIX', '');
 
-    // Connect this worker to gearmand
-    $worker = new Net_Gearman_Worker(array('localhost:4730'));
+    // Connect this worker to gearmand (app_gearman_job_server, e.g. app.yml)
+    $worker = new Net_Gearman_Worker(array(sfConfig::get('app_gearman_job_server', 'localhost:4730')));
 
     // Register abilities (jobs)
     foreach (array('qtSwordPluginWorker', 'arUpdateArtworkWorker') as $item)

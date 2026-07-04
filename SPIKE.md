@@ -175,8 +175,25 @@ docker run --rm --platform linux/amd64 -v "$PWD/../../..":/repo -w /repo/plugins
    Success → Failed×2 → AIP recovery (APPROVE) → Success.
    Ops note: ES needed X-Pack extras disabled + a data volume (watcher/ML OOM-killed the
    512MB heap; recreation wiped the unvolumed index).
-8. **Open**: full Archivematica pipeline (DIP upload → new artworks) — the only remaining
-   unexercised integration; LDAP-off auth story (email login already works via QubitUser).
+8. ✅ **Done — ingest path (DIP upload) verified without Archivematica**: the compose stack
+   now runs `gearmand` + a `worker` service (`php symfony tools:gearman-worker`). A fake
+   Archivematica DIP (`docker/build-fake-dip.sh`, contract reverse-engineered from
+   `qtPackageExtractorMETSArchivematicaDIP`) deposited via SWORD
+   (`docker/deposit-fake-dip.sh` — byte-identical headers to AM's `upload_qubit.py`,
+   BasicAuth demo user) → 302 → gearman job → METS parsed → AIP + file objects created and
+   attached to the `ar:100002` artwork (Grosse Fatigue), visible in the work page's AIP
+   overview and digital object browser. Fixes along the way: PHP `sockets` extension added
+   to the image (Net_Gearman fatals without it); `gearmanWorkerTask` hardcoded
+   `localhost:4730` → now reads `app_gearman_job_server`; entrypoint clears stale symfony
+   config caches and sets `sword_deposit_dir`; **note** the QubitSetting DB row
+   `sword_deposit_dir` overrides app.yml — set it to `/app/uploads/sword-deposits`:
+   `UPDATE setting_i18n SET value='/app/uploads/sword-deposits' WHERE id=(SELECT id FROM
+   setting WHERE name='sword_deposit_dir');`
+   Real-Archivematica follow-up (researched, not yet done): AM 1.18 hack compose pairs with
+   our SS v0.24 and still ships the same `upload_qubit.py` sender — point its DIP upload at
+   this verified endpoint (~2–3.5 days, see task notes).
+9. **Open**: LDAP-off auth story (email login already works via QubitUser); real
+   Archivematica end-to-end (optional now that both sides of the contract are verified).
 
 ### Deliverable
 This table filled in + effort estimate + recommendation on whether full Phase 1 (faithful

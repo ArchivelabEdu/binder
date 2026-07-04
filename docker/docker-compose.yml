@@ -39,6 +39,39 @@ services:
     image: memcached:1.5
     platform: linux/amd64
 
+  gearmand:
+    # Job queue for the ingest worker (SWORD deposits are processed async)
+    image: artefactual/gearmand
+    platform: linux/amd64
+
+  worker:
+    # Binder ingest worker: consumes gearman jobs (qtSwordPluginWorker)
+    build:
+      context: ..
+      dockerfile: docker/app/Dockerfile
+    platform: linux/amd64
+    command: ["sh", "-c", "cd /app && php -d memory_limit=-1 symfony tools:gearman-worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+      gearmand:
+        condition: service_started
+      es:
+        condition: service_started
+      memcached:
+        condition: service_started
+    environment:
+      ARCHIVEMATICA_SS_HOST: "ss"
+      ARCHIVEMATICA_SS_PORT: "8000"
+      ARCHIVEMATICA_SS_PIPELINE_UUID: "00000000-0000-0000-0000-000000000000"
+      ARCHIVEMATICA_SS_USER: "spike"
+      ARCHIVEMATICA_SS_API_KEY: "spike"
+      ATOM_DRMC_TMS_URL: "http://tms.invalid"
+      ATOM_DRMC_TMS_VERSION: "1"
+    volumes:
+      - ..:/app
+    restart: unless-stopped
+
   ss:
     # Archivematica Storage Service — the component Binder actually talks to
     # (AIP download/recovery via /api/v2). SQLite: SS v0.24 is Django 4.2 and
