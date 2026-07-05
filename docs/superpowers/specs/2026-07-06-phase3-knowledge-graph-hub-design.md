@@ -15,6 +15,7 @@
 | D3 | 파일럿 도메인 = **현 MoMA 데모 확장** (데이터 모델은 도메인 중립) | 기존 자산(10작품·실파일) 재사용, 계층→그래프 마이그레이션 자체가 시연 거리 |
 | D4 | 진행 경로 = **접근법 A: 그래프 스파인 우선** (P3.1 RiC-O 코어 → P3.2 IM → P3.3 AI 추출 → P3.4 L2 검색) | 의존 순서와 일치, 단계별 시연 가능, 현대차 로드맵 2단 전략·Getty 점진론 부합 |
 | D5 | 저장 기술 = **PG가 진실, 그래프는 파생 발행** (Getty LOD 캐시 방식). L2 저장소 v1 = **동일 PG 인스턴스의 전용 스키마**(binder_search), 전용 그래프 DB·트리플 스토어 도입은 후순위 | Getty가 상용 그래프 DB 대신 LOD 캐시 채택(LOD Gateway); 기존 binder-next 스키마·감사 파이프라인 보존 |
+| D6 | 어휘 전략 = **내부 모델은 RiC-O 정렬 단일 스키마, 외부 표현은 다중 어휘 매핑**. RiC-O 외에 Linked Art·SKOS·schema.org·FOAF·dcterms 등으로 확장 가능해야 하며, 클래스·속성의 외부 어휘 매핑은 하드코딩이 아닌 데이터(어휘 레지스트리, §2.7)다 (사용자 지시 2026-07-06) | 사전질문지(260626) Q4의 계층적 조합 구상(RiC-O+CIDOC CRM+Linked Art+Schema.org); Getty 실무 — 내부 정합 그래프 모델 + 외부 노출 프로파일(Linked Art Profile) 계층화 |
 
 ## 1. 포지셔닝과 아키텍처
 
@@ -75,7 +76,7 @@ level 텀 전수 → 분류표 확정은 P3.1 플랜의 첫 작업(텀 census)�
 
 ### 2.3 관계 1급 객체
 
-- `relation_types`: 정방향·역방향 라벨 쌍(i18n), RiC-O 속성 URI 매핑, 도메인/레인지 힌트(엔터티 종류 목록), 설명. 관리자 CRUD(현대차 PB-24 설계 승계).
+- `relation_types`: 정방향·역방향 라벨 쌍(i18n), 외부 어휘 속성 매핑(복수 — §2.7 레지스트리 참조; 예: rico:hasOrHadPart + dcterms:hasPart), 도메인/레인지 힌트(엔터티 종류 목록), 설명. 관리자 CRUD(현대차 PB-24 설계 승계).
 - `relations`: Source(엔터티 종류+id) – Type – Target(엔터티 종류+id), 시간 한정자(시작/종료), 확실성(certainty, 선택), 주기(注記, note, 선택), `origin`(user | extraction | import), 근거 출처(추출분 필수). 임의 엔터티 간 연결.
 - **기존 relations 테이블 이관 규칙** (현행: nodes 전용 int FK + cascade, (subject,object,type) 유니크, 방향별 12개 관계 텀 + reciprocal_term_id):
   - 참조는 (entity_type, entity_id) 폴리모픽 컬럼 + 앱 레벨 정합 검증으로 전환. **cascade 삭제 금지** — 감사·피드에 기록되는 명시적 삭제로 전환(엔터티 삭제 시 관계를 소프트 삭제하고 audit 기록).
@@ -98,6 +99,15 @@ level 텀 전수 → 분류표 확정은 P3.1 플랜의 첫 작업(텀 census)�
 
 - 현행 events는 uuid 없는 node 종속 부속행이다. P3.1에서 **1급 엔터티로 승격**: uuid/URI, 유형(SKOS), 일자, i18n 라벨, 독립 행 + 관계(relations)로 기록·전거와 연결(현대차 '연표' 전거의 사건-허브 패턴). 기존 node 종속 행은 관계로 재표현해 이관.
 
+### 2.7 어휘 레지스트리와 다중 어휘 매핑 (D6)
+
+- **내부 모델은 하나**(Record/RecordSet/Instantiation/Agent/Event/Concept + 관계 1급 객체, RiC-O 정렬)이고, **외부 어휘 표현은 여럿**이다. 이를 위해:
+  - `vocabularies`: 등록된 외부 어휘(prefix, 네임스페이스 URI, 설명). 시드: rico, la(Linked Art), skos, schema, foaf, dcterms — 관리자 등록으로 확장(CIDOC CRM 등).
+  - `class_mappings` / 속성 매핑: 내부 클래스·속성·관계유형 → 외부 어휘 URI, **1:N 허용**(예: 내부 Record → rico:Record + schema:CreativeWork; 내부 Agent(인물) → rico:Person + foaf:Person + schema:Person).
+- **직렬화기는 매핑-드리븐**: JSON-LD 발행(§3.4)이 매핑 테이블을 읽어 프로파일별 출력을 생성한다. 새 어휘 지원 = 코드 수정이 아니라 어휘 등록 + 매핑 입력.
+- v1 구현 범위: RiC-O가 **기본(primary) 프로파일**(완전 매핑), schema.org를 **두 번째 프로파일**로 매핑해 다중 어휘 동작을 증명한다(§8 P3.2 시연). Linked Art·CIDOC CRM은 레지스트리에 등록만 하고 완전 매핑은 후속(Linked Art는 이벤트 중심 구조 변환이 필요해 단순 속성 매핑 이상의 변환 계층이 요구됨 — 그 변환 계층 설계는 매핑 완성 시점의 플랜에서).
+- SKOS는 발행 프로파일이 아니라 **개념 구조 자체**(§2.4)로 이미 내장, FOAF는 Agent 매핑으로 흡수.
+
 ## 3. Identity Manager 모듈 (P3.2)
 
 ### 3.1 식별자 레지스트리
@@ -117,7 +127,7 @@ level 텀 전수 → 분류표 확정은 P3.1 플랜의 첫 작업(텀 census)�
 
 ### 3.4 발행 기반
 
-- 엔터티별 **JSON-LD**(RiC-O 컨텍스트) 직렬화. (벌크 RDF 덤프는 범위 외 — P3.4는 엔터티별 JSON-LD와 변경 피드만 소비한다.)
+- 엔터티별 **JSON-LD** 직렬화 — **매핑-드리븐 다중 프로파일**(§2.7): 기본 RiC-O 컨텍스트, `?profile=` 파라미터로 등록 어휘 프로파일(v1: schema.org) 선택. (벌크 RDF 덤프는 범위 외 — P3.4는 엔터티별 JSON-LD와 변경 피드만 소비한다.)
 - **변경 피드**: 시간순 변경 스트림 API. 사양을 명시한다:
   - **대상 = 엔터티 + 관계**(relations 변경 포함 — L2 그래프 인덱스의 증분 갱신에 필수).
   - **이벤트 종류 = created | updated | deleted | merged**(merged는 승자·패자 URI 쌍 포함; L2는 수신 시 패자 제거 + 엣지 재지향).
@@ -180,8 +190,8 @@ Binder 워커(BullMQ 확장)의 EXTRACT 큐. 국회 붙임1 도식의 검증-회
 
 | 단계 | 범위 | 완료 시연 |
 |---|---|---|
-| **P3.1 RiC-O 코어** | §2 전체(사건 승격 포함) + §3.4 전제(감사 갭 봉합) + §6의 P3.1 UI 4종 + §7 마이그레이션. 시드 확장: 파생 계보(마스터→열람용→썸네일) 신규 생성 | Tetris 3종(표현형→하위 Record)과 백남준 장비(물리 Instantiation)가 트리아지대로 이관되고, 그래프 뷰에 Record/Instantiation + 파생 계보 표시; 온톨로지 정의서 TTL 발행 |
-| **P3.2 Identity Manager** | §3 전체. 시드 확장: 중복 전거 시드(병합 시연용) | 백남준 전거를 ULAN URI에 링크; 중복 전거 병합(구 URI 리다이렉트 확인); JSON-LD·변경 피드 응답(관계 변경·merged 이벤트 포함) |
+| **P3.1 RiC-O 코어** | §2 전체(사건 승격·어휘 레지스트리 §2.7 구조 포함) + §3.4 전제(감사 갭 봉합) + §6의 P3.1 UI 4종 + §7 마이그레이션. 시드 확장: 파생 계보(마스터→열람용→썸네일) 신규 생성 | Tetris 3종(표현형→하위 Record)과 백남준 장비(물리 Instantiation)가 트리아지대로 이관되고, 그래프 뷰에 Record/Instantiation + 파생 계보 표시; 온톨로지 정의서 TTL 발행(등록 어휘 포함) |
+| **P3.2 Identity Manager** | §3 전체 + §2.7 매핑-드리븐 직렬화(schema.org 프로파일). 시드 확장: 중복 전거 시드(병합 시연용) | 백남준 전거를 ULAN URI에 링크; 중복 전거 병합(구 URI 리다이렉트 확인); JSON-LD·변경 피드 응답(관계 변경·merged 이벤트 포함); **동일 엔터티를 RiC-O·schema.org 두 프로파일 JSON-LD로 발행** |
 | **P3.3 AI 추출** | §4 전체 + 검수 큐 UI | MoMA 기술문·CSV에서 트리플 추출 → 그라운딩 → 검수 승인 → 그래프 반영(origin=extraction 표시), unmatched-entity의 전거 승격 1건 |
 | **P3.4 L2 검색** | §5 전체. 시드 확장: 매체 SKOS 개념(CRT 모니터 등) + 작품-매체 관계(P3.1 어휘 구조 사용) | "백남준 작품 중 CRT 모니터를 쓰는 것은?" 자연어 질의 → 근거 인용 답변 + 그래프 시각화 + 원본 점프 |
 
@@ -197,6 +207,7 @@ Binder 워커(BullMQ 확장)의 EXTRACT 큐. 국회 붙임1 도식의 검증-회
 - 실서버 배포, LDAP/SSO, ARK/DOI 등록
 - Getty 어휘 기여(contribution) 워크플로, 멀티 도메인 시드
 - 기록(Record) 병합, 병합 자동 언두, AI 자동 병합·자동 커밋(전 구간 인간 게이트 유지), 파일 단위 파생 계보
+- Linked Art·CIDOC CRM **완전 매핑**(레지스트리 등록 + 구조는 v1 포함, 이벤트 중심 변환 계층은 후속 — §2.7)
 
 ## 10. 참고 근거 (요지)
 
