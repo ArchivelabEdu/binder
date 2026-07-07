@@ -245,3 +245,35 @@ M2 io 670:       installation_view_01.jpg    thumb HTTP:200
 - `informationobjectsFilesAction.class.php` — mime 추론 폴백
 - `docker/app/nginx.conf` — uploads/r 정적 서빙 확장 (컨테이너 반영 완료)
 - `arDrmcAttachAssetsTask.class.php` + `scripts/apply-drmc-assets.sh` — 자산 연결 파이프라인
+
+---
+
+## 추가 요청 3 — Tetris 작품 + 버전 3종 + 버전별 썸네일
+
+### CC 이미지 수집 (Wikimedia Commons — 라이선스 실측 확인)
+
+| 파일 | 버전 | 출처 | 라이선스 | 크레딧 |
+|---|---|---|---|---|
+| tetris-original.jpg | ① Pajitnov 원본 (Elektronika 60 텍스트모드, Lenin Museum Tampere 전시) | commons: The first version of Tetris.jpg | **CC BY-SA 4.0** | Unnerving duck / Wikimedia Commons |
+| tetris-nes.jpg | ② NES 카트리지+박스아트 (2013 CTWC) | commons: 2013 CTWC Cartridge and Box.jpg | **CC BY-SA 3.0** | Keithdigital / Wikimedia Commons |
+| tetris-gameboy.jpg | ③ Game Boy 실기 구동 화면 | commons: Tetris on Game Boy.jpg | **CC BY 2.0** | William Warby / Wikimedia Commons |
+
+저장: (a) binder-next `real-assets/152403/` + `manifest.json` 152403 항목에 3건 추가(캡션·라이선스·version 태그 — binder-next 재사용용, 해당 폴더는 gitignored 유지), (b) 컨테이너 `/app/uploads/r/drmc-assets/152403/` 복사.
+
+### 시더 확장 (멱등)
+
+- `seedTetris()` 추가: 작품 IO(identifier **152403**, 928.2012, Alexey Pajitnov·Russian born 1955, 1984, 'Video game software', classification Design, department Architecture and Design — binder-next nodes 실측 메타 준거) + Components 하위 **3 버전 컴포넌트**(1984 IBM PC / 1988 NES / 1988 Game Boy — binder-next 컴포넌트명 동일, 928.2012.1~3) + **AIP 3개**(binder-next와 동일 uuid `cccc0001~3-...`, filename `Tetris--928.2012.N.x1`) + AIP별 버전 이미지 파일 IO
+- 작품 대표 썸네일: `tetris_thumb.png` (real-thumbs/152403.jpg — `apply-real-thumbs.sh`에 항목 추가)
+- attach 태스크 개선: **파일명 일치 우선 매칭 2-pass** (pass1 이름 매칭 → pass2 순서 배정) — tetris-nes.jpg가 정확히 NES 컴포넌트의 파일 IO에 연결되도록. 기존 연결 전부 멱등 skip 확인.
+
+### 검증 (재색인 후 실호출)
+
+```
+works 브라우즈: total 9 (Tetris 9번째) + tetris_thumb.png HTTP 200
+트리: Tetris > Components > [1984 IBM PC | 1988 NES | 1988 Game Boy] > 각 AIP IO
+갤러리(files API io 979):
+  tetris-original.jpg  aip=Tetris--928.2012.1.x1  HTTP:200
+  tetris-nes.jpg       aip=Tetris--928.2012.2.x1  HTTP:200
+  tetris-gameboy.jpg   aip=Tetris--928.2012.3.x1  HTTP:200
+  installation_view_01~02.jpg (1.jpg·2.jpg 일반 이미지)  HTTP:200
+```

@@ -52,6 +52,7 @@ convert_thumb "$REAL_DIR/81362.jpg"   "$THUMBS_DIR/lovers_thumb.png"          "L
 convert_thumb "$REAL_DIR/175938.jpg"  "$THUMBS_DIR/grossefatigue_thumb.png"   "Grosse Fatigue"
 convert_thumb "$REAL_DIR/169996.jpg"  "$THUMBS_DIR/spaceinvaders_thumb.png"   "Space Invaders"
 convert_thumb "$REAL_DIR/143751.jpg"  "$THUMBS_DIR/officialwelcome_thumb.png" "Official Welcome"
+convert_thumb "$REAL_DIR/152403.jpg"  "$THUMBS_DIR/tetris_thumb.png"          "Tetris"
 
 echo ""
 echo "Done. Unchanged (no real-thumb available):"

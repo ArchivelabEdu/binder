@@ -67,11 +67,12 @@ EOF;
     // Ensure relation type terms exist
     $this->ensureRelationTerms();
 
-    // Main 3 artworks with full component trees
+    // Main artworks with full component trees
     $artworks = array(
       $this->seedManifestos2(),
       $this->seedLovers(),
       $this->seedGrosseFatigue(),
+      $this->seedTetris(),
     );
 
     // Merge leftover binder:seed-demo duplicates of the same 3 works into
@@ -774,6 +775,109 @@ EOF;
     ));
 
     $this->logSection('binder', 'Seeded Grosse Fatigue (id 175938)');
+    return $artwork;
+  }
+
+  // -------------------------------------------------------------------------
+  // Tetris (mirrors binder-next FRBR structure: 3 version components + 3 AIPs)
+
+  protected function seedTetris()
+  {
+    $artwork = $this->getOrCreateArtwork(array(
+      'identifier' => '152403',
+      'objectNumber' => '928.2012',
+      'title' => 'Tetris',
+      'artist' => 'Alexey Pajitnov',
+      'artistDates' => 'Russian, born 1955',
+      'dated' => '1984',
+      'startDate' => '1984-01-01',
+      'accessionDate' => '2012-11-15',
+      'classification' => 'Design',
+      'department' => 'Architecture and Design',
+      'medium' => 'Video game software',
+      'dimensions' => 'Dimensions variable',
+      'thumbnail' => '/uploads/r/drmc-thumbs/tetris_thumb.png',
+    ));
+
+    $compParent = $this->getOrCreateComponentsParent($artwork);
+
+    // Version components (binder-next nodes 30-32) with one AIP each.
+    // Each AIP carries the version image as its file IO so the context
+    // browser sidebar gallery shows the version-specific picture
+    // (binder:attach-drmc-assets pairs assets to file IOs by filename).
+    $versions = array(
+      array(
+        'component' => array(
+          'identifier' => '152403-v1',
+          'number' => '928.2012.1',
+          'title' => '1984 IBM PC',
+          'lod' => 'app_drmc_lod_component_id',
+          'medium' => 'Video game software (Elektronika 60 original / IBM PC port)',
+          'type' => 'Software',
+        ),
+        'aip' => array(
+          'uuid' => 'cccc0001-0000-4000-a000-000000000009',
+          'filename' => 'Tetris--928.2012.1.x1',
+          'sizeOnDisk' => 2097152,
+          'digitalObjectCount' => 1,
+          'createdAt' => '2012-11-15 10:00:00',
+          'files' => array(
+            array('title' => 'tetris-original.jpg', 'path' => 'objects/tetris-original.jpg'),
+          ),
+        ),
+      ),
+      array(
+        'component' => array(
+          'identifier' => '152403-v2',
+          'number' => '928.2012.2',
+          'title' => '1988 NES',
+          'lod' => 'app_drmc_lod_component_id',
+          'medium' => 'Video game software (Nintendo Entertainment System)',
+          'type' => 'Software',
+        ),
+        'aip' => array(
+          'uuid' => 'cccc0002-0000-4000-a000-000000000010',
+          'filename' => 'Tetris--928.2012.2.x1',
+          'sizeOnDisk' => 2097152,
+          'digitalObjectCount' => 1,
+          'createdAt' => '2012-11-15 10:10:00',
+          'files' => array(
+            array('title' => 'tetris-nes.jpg', 'path' => 'objects/tetris-nes.jpg'),
+          ),
+        ),
+      ),
+      array(
+        'component' => array(
+          'identifier' => '152403-v3',
+          'number' => '928.2012.3',
+          'title' => '1988 Game Boy',
+          'lod' => 'app_drmc_lod_component_id',
+          'medium' => 'Video game software (Nintendo Game Boy)',
+          'type' => 'Software',
+        ),
+        'aip' => array(
+          'uuid' => 'cccc0003-0000-4000-a000-000000000011',
+          'filename' => 'Tetris--928.2012.3.x1',
+          'sizeOnDisk' => 2097152,
+          'digitalObjectCount' => 1,
+          'createdAt' => '2012-11-15 10:20:00',
+          'files' => array(
+            array('title' => 'tetris-gameboy.jpg', 'path' => 'objects/tetris-gameboy.jpg'),
+          ),
+        ),
+      ),
+    );
+
+    foreach ($versions as $version)
+    {
+      $this->getOrCreateComponent($compParent, $version['component']);
+
+      $aip = $version['aip'];
+      $aip['component'] = $version['component']['identifier'];
+      $this->seedAip($artwork, $aip);
+    }
+
+    $this->logSection('binder', 'Seeded Tetris (id 152403, 3 versions + 3 AIPs)');
     return $artwork;
   }
 

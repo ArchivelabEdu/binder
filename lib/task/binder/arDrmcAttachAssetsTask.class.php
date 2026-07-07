@@ -182,6 +182,10 @@ EOF;
     }
 
     $attached = 0;
+    $pending = array();
+
+    // Pass 1: pair assets with same-titled file IOs (version-specific
+    // images, e.g. tetris-nes.jpg -> the NES component's file IO)
     foreach ($images as $path)
     {
       // Mirrors QubitDigitalObject::sanitizeFilename() (protected there)
@@ -192,6 +196,38 @@ EOF;
 
         continue;
       }
+
+      $target = null;
+      foreach ($candidates as $key => $candidate)
+      {
+        if ($candidate->title == basename($path) || $candidate->title == $sanitized)
+        {
+          $target = $candidate;
+          unset($candidates[$key]);
+          break;
+        }
+      }
+
+      if (null === $target)
+      {
+        $pending[] = $path;
+
+        continue;
+      }
+
+      $fileIo = QubitInformationObject::getById($target->id);
+      $this->logSection('binder', '  [attach] '.basename($path).' -> file IO '.$fileIo->id.' ("'.$target->title.'") [name match]');
+      $this->attachImage($fileIo, $path);
+      $existingNames[] = $sanitized;
+      $attached++;
+    }
+
+    // Pass 2: remaining assets to remaining candidates in order, then
+    // new installation_view file IOs
+    $candidates = array_values($candidates);
+    foreach ($pending as $path)
+    {
+      $sanitized = preg_replace('/[^a-z0-9_\.-]/i', '_', basename($path));
 
       if (0 < count($candidates))
       {
@@ -206,18 +242,22 @@ EOF;
         $this->logSection('binder', '  [attach] '.basename($path).' -> new file IO '.$fileIo->id.' ("'.$title.'")');
       }
 
-      $digitalObject = new QubitDigitalObject;
-      $digitalObject->informationObjectId = $fileIo->id;
-      $digitalObject->usageId = QubitTerm::MASTER_ID;
-      $digitalObject->assets[] = new QubitAsset($path);
-      $digitalObject->indexOnSave = false;
-      $digitalObject->save();
-
+      $this->attachImage($fileIo, $path);
       $existingNames[] = $sanitized;
       $attached++;
     }
 
     return $attached;
+  }
+
+  protected function attachImage($fileIo, $path)
+  {
+    $digitalObject = new QubitDigitalObject;
+    $digitalObject->informationObjectId = $fileIo->id;
+    $digitalObject->usageId = QubitTerm::MASTER_ID;
+    $digitalObject->assets[] = new QubitAsset($path);
+    $digitalObject->indexOnSave = false;
+    $digitalObject->save();
   }
 
   /**
