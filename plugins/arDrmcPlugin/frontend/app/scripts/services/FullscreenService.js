@@ -19,8 +19,10 @@
       },
 
       enable: function (element) {
-        if (element.requestFullScreen) {
-          element.requestFullScreen();
+        if (element.requestFullscreen) {
+          element.requestFullscreen();
+        } else if (element.webkitRequestFullscreen) {
+          element.webkitRequestFullscreen();
         } else if (element.mozRequestFullScreen) {
           element.mozRequestFullScreen();
         } else if (element.webkitRequestFullScreen) {
@@ -29,10 +31,14 @@
       },
 
       cancel: function () {
-        if (document.cancelFullScreen) {
-          document.cancelFullScreen();
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
         } else if (document.mozCancelFullScreen) {
           document.mozCancelFullScreen();
+        } else if (document.cancelFullScreen) {
+          document.cancelFullScreen();
         } else if (document.webkitCancelFullScreen) {
           document.webkitCancelFullScreen();
         }
