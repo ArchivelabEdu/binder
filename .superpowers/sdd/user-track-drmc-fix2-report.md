@@ -206,9 +206,36 @@ lovers_manual_v1.pdf      → mime=application/pdf   (icon-desktop)
 - **`lib/task/binder/arDrmcAttachAssetsTask.class.php`** (신규, php 5.6 · qubit ORM): `uploads/r/drmc-assets/{identifier}/*.jpg|jpeg|png` 스캔 → 작품 매칭(81362·175938·175258 우선) → DO 없는 이미지 제목 파일 IO 우선 연결, 부족 시 첫 AIP IO 아래 새 파일 IO 생성 → `QubitDigitalObject`(usage MASTER) 연결, 썸네일 파생 자동 생성(컨테이너 ImageMagick 6.9.7 확인). 멱등(동일 파일명 DO 존재 시 skip). 무자산 시 no-op (실행으로 확인).
 - **`scripts/apply-drmc-assets.sh`** (신규): attach task → `search:populate` → 파생 썸네일 URL 200 검증 일괄. 자산 도착 후 1회 실행이면 갤러리 노출.
 
-### 남은 검증 (자산 도착 후)
+### 자산 도착 → 실제 연결 완료 (세션 중 자산 도착)
 
-`bash scripts/apply-drmc-assets.sh` → 갤러리 그리드 이미지 로드 200 확인. 현재는 아이콘 폴백 동작(위 mime 검증)으로 갈음.
+작업 중 `uploads/r/drmc-assets/` 에 10개 objectId 폴더 도착 → 파이프라인 실행.
+
+1차 실행에서 결함 발견: 이미지 제목이 아닌 파일 IO(METS.xml·manifest-md5.txt·.mov)에도 이미지가 연결됨. **수정**: (a) 연결 후보를 이미지 확장자 제목 IO로 한정, (b) 후보 부족 시 `installation_view_NN.jpg` 제목의 새 파일 IO 생성, (c) MoMA objectId ↔ DRMC 식별자 별칭 추가(169996→102345 Space Invaders, 143751→103456 Official Welcome). 오연결 4건은 일회성 임시 task로 삭제 후 재실행(임시 task 파일은 실행 후 제거, 미커밋).
+
+최종 연결 결과 (8 DO):
+
+| 작품 | 자산 | 연결 대상 |
+|---|---|---|
+| Lovers (81362) | 1장 | 기존 `furuhashi_331.1998(1).JPG` 파일 IO (멱등 skip 확인) |
+| Grosse Fatigue (175938) | 3장 | `installation_view_01~03.jpg` 신규 IO |
+| Manifestos 2 (175258) | 1장 | `installation_view_01.jpg` 신규 IO |
+| Official Welcome (103456←143751) | 1장 | `installation_view_01.jpg` 신규 IO |
+| Space Invaders (102345←169996) | 2장 | `installation_view_01~02.jpg` 신규 IO |
+| Tetris·SimCity·Sims·10 Days·Paik | — | DRMC 작품 없음 — WARNING 후 skip (정상) |
+
+`search:populate` 재색인 완료.
+
+### 최종 검증 (인증 API 실호출 + 썸네일 URL 로드)
+
+```
+Lovers io 763:   furuhashi_331.1998(1).JPG   thumb=/uploads/r/null/.../1_142.jpg HTTP:200
+GF io 850:       installation_view_01~03.jpg thumb HTTP:200 x3
+M2 io 670:       installation_view_01.jpg    thumb HTTP:200
+비이미지: .mov→video/quicktime(film icon), .xml→application/xml(code icon),
+         .pdf→application/pdf, .txt→text/plain, .aif→audio/x-aiff — mime 폴백 정상
+```
+
+갤러리 그리드: 이미지 → 실사 썸네일 렌더 + 로드 200, 비이미지 → 타입 아이콘. PDF p.19 기능 재현 완료.
 
 ---
 
