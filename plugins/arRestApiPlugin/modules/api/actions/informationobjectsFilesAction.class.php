@@ -76,6 +76,15 @@ class ApiInformationObjectsFilesAction extends QubitApiAction
       $this->addItemToArray($item, 'mime_type', $doc['metsData']['mimeType']);
       $this->addItemToArray($item, 'byte_size', $doc['metsData']['size']);
 
+      // Fallback: derive MIME type from the filename extension so the
+      // sidebar file gallery can render a type icon for files without
+      // METS data (e.g. seeded demo file IOs)
+      if (empty($item['mime_type']) && isset($item['filename'])
+        && 'unknown' !== ($derivedMimeType = QubitDigitalObject::deriveMimeType($item['filename'])))
+      {
+        $this->addItemToArray($item, 'mime_type', $derivedMimeType);
+      }
+
       // Not needed?
       $this->addItemToArray($item, 'media_type_id', $doc['digitalObject']['mediaTypeId']);
 
