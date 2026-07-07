@@ -158,3 +158,75 @@ Context browser colors: red=540, red=542, green=543 — matches PDF p.20.
 
 - **NEW**: `lib/task/binder/arDrmcSeedDrmcPdfTask.class.php` — the seeder task
 - **NEW**: `uploads/r/drmc-thumbs/*.png` — 8 generated thumbnails (committed as binary, each <100KB)
+
+---
+
+## 8. Duplicate Works Dedupe (follow-up fix)
+
+Controller verification found the 3 legacy `binder:seed-demo` rows (identifiers
+100001/100002/100003) coexisting with the new PDF rows -> duplicate work docs
+in the works browse. Fixed inside the seeder (`dedupeLegacyDemoWorks()`).
+
+### Dedupe decision per work
+
+Survivor = the NEW PDF-accurate row in all 3 cases (richer metadata, real TMS
+identifiers, real thumbnails, full component trees + derivation chains).
+Legacy attachments were folded into the survivors before deletion:
+
+| Work | Legacy row (deleted) | Survivor | Attachments migrated |
+|---|---|---|---|
+| Lovers | io 579 (100001) | io 763 (81362) | AIPs `6f198fa9` -> component 81362-c03 (Laser Disk 1), `9559945a` -> 81362-c02 (1/2" VHS NTSC); AIP IO subtrees incl. file IOs moved; tech-record relation (`requires` Pioneer LD-V8000) re-pointed |
+| Grosse Fatigue | io 607 (100002) | io 850 (175938) | AIPs `d3a3f8d6` -> 175938-prores-bl, `aaaaaaaa` (Demo_ingest) -> 175938-macmini; the "Demo ingest DIP" subtree carrying the only real digital_object rows (654/656/659) moved intact |
+| Manifestos 2 | io 622 (100003) | io 670 (175258) | nothing attached (no AIPs/digital objects) -> plain subtree delete |
+
+### Mechanism (all through the Qubit ORM, no raw UPDATE on lft/rgt)
+
+1. Snapshot legacy descendant ids, then move each AIP-LOD IO subtree with
+   `parentId` change + `save()` (production move-action pattern; the ORM's
+   `updateNestedSet` calls `$parent->clear()` for fresh values). One fresh
+   `getById` per move so nested-set values are never stale.
+2. Re-point `aip.part_of` -> survivor; re-point type-178 relations
+   (object=legacy artwork -> survivor; object=legacy component -> mapped
+   survivor component); sync `attachedTo` property.
+3. Re-point remaining non-178 relations touching the legacy artwork
+   (with a duplicate guard that deletes redundant relations instead).
+4. Delete the leftover legacy subtree deepest-leaf-first; every iteration
+   re-reads fresh lft/rgt from MySQL before `delete()` because
+   `deleteFromNestedSet` closes gaps using in-memory values.
+
+### Idempotency hardening
+
+- `getOrCreateArtwork` now falls back to adoption by **title + artist**
+  (creation-event actor name) when the identifier lookup fails, so a re-run
+  against a fresh Phase-1 DB enriches the demo row in place instead of
+  creating a second work.
+- `seedAip` now matches its AIP IO by parent + LOD + **title** (a component
+  can host several AIP IOs after the merge; parent+LOD alone adopted the
+  wrong node and duplicated file IOs on re-run — found and fixed, the 9
+  wrongly created file IOs deleted).
+
+### Verification (post-fix)
+
+```
+ES work-level docs: 8 total, DUPLICATE TITLES: NONE
+  3 merged works (81362, 175258, 175938) + 5 stubs
+  (pre-fix state was 11 = 3 duplicated pairs + 5 stubs; the correct
+   deduped total is 8, not 11 — the coordinator figure was a miscount)
+
+Trees (descendants / components):
+  Manifestos 2  40 / 34   Lovers  47 / 37   Grosse Fatigue  30 / 12
+
+AIP part_of: all 7 AIPs point at the survivor works
+Digital objects 654/656/659: preserved (moved with Demo ingest DIP subtree)
+Nested set: 0 bad nodes, 0 orphans;  legacy identifiers remaining: 0
+Derivation relations: 20 (12 M2 + 8 GF)
+Seeder re-run: no merge repeated, no duplicates recreated (fully idempotent)
+Index: 426 documents
+```
+
+### Note
+
+Pre-existing legacy duplication kept as-is: two AIP IO nodes titled
+"grossefatigue_transfer_1" (io 617 & 666, each with one
+GrosseFatigue_ProRes422.mov file IO) came from Phase 1 data; both were
+preserved under 175938-prores-bl rather than guessing which to discard.

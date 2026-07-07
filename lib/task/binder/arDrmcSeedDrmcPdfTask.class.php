@@ -74,6 +74,10 @@ EOF;
       $this->seedGrosseFatigue(),
     );
 
+    // Merge leftover binder:seed-demo duplicates of the same 3 works into
+    // the PDF-accurate rows (preserves Phase 1 AIP/digital-object attachments)
+    $this->dedupeLegacyDemoWorks();
+
     // p.12 search-result stub works
     foreach ($this->getSearchResultStubs() as $stub)
     {
@@ -95,6 +99,277 @@ EOF;
       QubitFlatfileImport::createOrFetchTerm($taxId, $name);
     }
     $this->logSection('binder', 'Relation terms ensured (isDerivativeOf, isCopyOf)');
+  }
+
+  // -------------------------------------------------------------------------
+  // Legacy binder:seed-demo duplicate merge
+  //
+  // binder:seed-demo created Lovers/Grosse Fatigue/Manifestos 2 with fake
+  // identifiers 100001/100002/100003. This task creates the same works with
+  // their real TMS identifiers, so both may coexist -> duplicate work docs
+  // in the works browse. Merge strategy: the PDF-accurate rows survive
+  // (richer metadata/trees/thumbnails); legacy AIP + digital-object
+  // attachments are moved over, then the legacy subtree is deleted.
+
+  protected function dedupeLegacyDemoWorks()
+  {
+    $map = array(
+      '100001' => array(
+        'survivor' => '81362',
+        'aipTargets' => array(
+          '6f198fa9-3fa5-43ab-b0b6-8f8db2f31a52' => '81362-c03',
+          '9559945a-52e6-4c0e-9d54-83e8e548dd1d' => '81362-c02'),
+        'default' => '81362-c03'),
+      '100002' => array(
+        'survivor' => '175938',
+        'aipTargets' => array(
+          'd3a3f8d6-8a5b-4e6c-9c1a-2f4b7c1d9e0f' => '175938-prores-bl',
+          'aaaaaaaa-bbbb-cccc-dddd-eeeeffff0001' => '175938-macmini'),
+        'default' => '175938-macmini'),
+      '100003' => array(
+        'survivor' => '175258',
+        'aipTargets' => array(),
+        'default' => null),
+    );
+
+    $artworkLodId = sfConfig::get('app_drmc_lod_artwork_record_id');
+
+    foreach ($map as $legacyIdentifier => $cfg)
+    {
+      $criteria = new Criteria;
+      $criteria->add(QubitInformationObject::IDENTIFIER, $legacyIdentifier);
+      $criteria->add(QubitInformationObject::LEVEL_OF_DESCRIPTION_ID, $artworkLodId);
+      if (null === $legacy = QubitInformationObject::getOne($criteria))
+      {
+        continue; // already merged or never seeded
+      }
+
+      $criteria = new Criteria;
+      $criteria->add(QubitInformationObject::IDENTIFIER, $cfg['survivor']);
+      $criteria->add(QubitInformationObject::LEVEL_OF_DESCRIPTION_ID, $artworkLodId);
+      if (null === $survivor = QubitInformationObject::getOne($criteria))
+      {
+        $this->logSection('binder', 'WARNING: survivor '.$cfg['survivor'].' missing, skipping merge of '.$legacyIdentifier);
+        continue;
+      }
+
+      $this->logSection('binder', 'Merging legacy '.$legacyIdentifier.' (io '.$legacy->id.') into '.$cfg['survivor'].' (io '.$survivor->id.')');
+
+      // Snapshot of legacy descendant ids BEFORE any nested-set moves
+      $descendantIds = array();
+      foreach (QubitPdo::fetchAll('SELECT id FROM information_object WHERE lft > ? AND rgt < ?',
+        array($legacy->lft, $legacy->rgt)) as $row)
+      {
+        $descendantIds[] = (int)$row->id;
+      }
+
+      // 1. Move AIP-LOD IO subtrees (they carry file IOs and digital objects)
+      //    under the mapped survivor component. One fresh fetch per move so
+      //    nested-set values are never stale.
+      $aipIoRows = QubitPdo::fetchAll(
+        'SELECT id FROM information_object WHERE lft > ? AND rgt < ? AND level_of_description_id = ?',
+        array($legacy->lft, $legacy->rgt, sfConfig::get('app_drmc_lod_aip_id')));
+
+      $aipTargetIds = array(); // uuid => component io id (for relation re-pointing)
+      foreach ($aipIoRows as $row)
+      {
+        $aipIo = QubitInformationObject::getById($row->id);
+
+        // Resolve the AIP uuid via a child file IO's aipUUID property
+        $uuid = null;
+        $uuidRows = QubitPdo::fetchAll(
+          'SELECT pi.value FROM information_object c
+             JOIN property p ON p.object_id = c.id AND p.name = ?
+             JOIN property_i18n pi ON pi.id = p.id
+            WHERE c.parent_id = ? LIMIT 1',
+          array('aipUUID', $aipIo->id));
+        if (0 < count($uuidRows))
+        {
+          $uuid = $uuidRows[0]->value;
+        }
+
+        // Fallback: AIP IOs without file children carry no aipUUID property,
+        // but their title matches the aip row's filename
+        if (null === $uuid)
+        {
+          $filenameRows = QubitPdo::fetchAll('SELECT uuid FROM aip WHERE filename = ?',
+            array($aipIo->getTitle(array('sourceCulture' => true))));
+          if (0 < count($filenameRows))
+          {
+            $uuid = $filenameRows[0]->uuid;
+          }
+        }
+
+        $target = $this->resolveMergeTarget($survivor, $cfg, $uuid);
+        if (null !== $uuid)
+        {
+          $aipTargetIds[$uuid] = $target->id;
+        }
+
+        $this->logSection('binder', '  moving AIP IO '.$aipIo->id.' ("'.$aipIo->getTitle(array('sourceCulture' => true)).'") under io '.$target->id);
+        $aipIo->parentId = $target->id;
+        $aipIo->indexOnSave = false;
+        $aipIo->save();
+      }
+
+      // 2. Re-point aip rows (part_of) and their type-178 relations
+      $criteria = new Criteria;
+      $criteria->add(QubitAip::PART_OF, $legacy->id);
+      foreach (QubitAip::get($criteria) as $aip)
+      {
+        $this->logSection('binder', '  re-pointing AIP '.$aip->uuid.' part_of -> io '.$survivor->id);
+        $aip->partOf = $survivor->id;
+        $aip->indexOnSave = false;
+        $aip->save();
+
+        $target = null;
+        if (isset($aipTargetIds[$aip->uuid]))
+        {
+          $target = QubitInformationObject::getById($aipTargetIds[$aip->uuid]);
+        }
+        else
+        {
+          $target = $this->resolveMergeTarget($survivor, $cfg, $aip->uuid);
+        }
+
+        $criteria2 = new Criteria;
+        $criteria2->add(QubitRelation::SUBJECT_ID, $aip->id);
+        $criteria2->add(QubitRelation::TYPE_ID, QubitTerm::AIP_RELATION_ID);
+        foreach (QubitRelation::get($criteria2) as $relation)
+        {
+          if ($relation->objectId == $legacy->id)
+          {
+            $relation->objectId = $survivor->id;
+          }
+          else if (in_array((int)$relation->objectId, $descendantIds))
+          {
+            $relation->objectId = $target->id;
+          }
+          else
+          {
+            continue;
+          }
+          $relation->indexOnSave = false;
+          $relation->save();
+        }
+
+        // Keep the attachedTo property in sync with the new component
+        if (null !== $property = QubitProperty::getOneByObjectIdAndName($aip->id, 'attachedTo'))
+        {
+          $property->value = $target->getTitle(array('sourceCulture' => true));
+          $property->indexOnSave = false;
+          $property->save();
+        }
+      }
+
+      // 3. Re-point any other relations that touch the legacy artwork
+      //    (e.g. supporting technology record 'requires' links)
+      foreach (array('subject', 'object') as $side)
+      {
+        $criteria3 = new Criteria;
+        $criteria3->add($side == 'subject' ? QubitRelation::SUBJECT_ID : QubitRelation::OBJECT_ID, $legacy->id);
+        foreach (QubitRelation::get($criteria3) as $relation)
+        {
+          if ($relation->typeId == QubitTerm::AIP_RELATION_ID)
+          {
+            continue; // handled above
+          }
+
+          // Duplicate guard: identical relation already on the survivor?
+          $criteria4 = new Criteria;
+          $criteria4->add(QubitRelation::SUBJECT_ID, $side == 'subject' ? $survivor->id : $relation->subjectId);
+          $criteria4->add(QubitRelation::OBJECT_ID, $side == 'object' ? $survivor->id : $relation->objectId);
+          $criteria4->add(QubitRelation::TYPE_ID, $relation->typeId);
+          if (null !== QubitRelation::getOne($criteria4))
+          {
+            $relation->indexObjectOnDelete = false;
+            $relation->indexSubjectOnDelete = false;
+            $relation->delete();
+            continue;
+          }
+
+          if ($side == 'subject')
+          {
+            $relation->subjectId = $survivor->id;
+          }
+          else
+          {
+            $relation->objectId = $survivor->id;
+          }
+          $relation->indexOnSave = false;
+          $relation->save();
+          $this->logSection('binder', '  re-pointed relation '.$relation->id.' ('.$side.') -> io '.$survivor->id);
+        }
+      }
+
+      // 4. Delete the leftover legacy subtree, leaf-first. Every iteration
+      //    re-reads fresh lft/rgt from MySQL so ORM nested-set gap closing
+      //    never operates on stale values.
+      $this->deleteSubtree($legacy->id);
+      $this->logSection('binder', '  deleted legacy work io '.$legacy->id);
+    }
+  }
+
+  /**
+   * Resolve which survivor component a legacy AIP should be attached to.
+   * Falls back to the survivor's Components node.
+   */
+  protected function resolveMergeTarget($survivor, $cfg, $uuid)
+  {
+    $identifier = null;
+    if (null !== $uuid && isset($cfg['aipTargets'][$uuid]))
+    {
+      $identifier = $cfg['aipTargets'][$uuid];
+    }
+    else if (null !== $cfg['default'])
+    {
+      $identifier = $cfg['default'];
+    }
+
+    if (null !== $identifier)
+    {
+      $criteria = new Criteria;
+      $criteria->add(QubitInformationObject::IDENTIFIER, $identifier);
+      $criteria->addAnd(QubitInformationObject::LEVEL_OF_DESCRIPTION_ID, sfConfig::get('app_drmc_component_lod_ids'), Criteria::IN);
+      if (null !== $component = QubitInformationObject::getOne($criteria))
+      {
+        return $component;
+      }
+    }
+
+    return $this->getOrCreateComponentsParent($survivor);
+  }
+
+  /**
+   * Delete an information object and all of its descendants, deepest leaf
+   * first, re-fetching fresh nested-set values from the database before
+   * every single delete (QubitInformationObject::deleteFromNestedSet closes
+   * gaps using in-memory lft/rgt, which go stale after each delete).
+   */
+  protected function deleteSubtree($rootId)
+  {
+    while (true)
+    {
+      $rootRows = QubitPdo::fetchAll('SELECT lft, rgt FROM information_object WHERE id = ?', array($rootId));
+      if (0 == count($rootRows))
+      {
+        return; // already gone
+      }
+
+      $leafRows = QubitPdo::fetchAll(
+        'SELECT id FROM information_object WHERE lft > ? AND rgt < ? AND rgt = lft + 1 ORDER BY lft LIMIT 1',
+        array($rootRows[0]->lft, $rootRows[0]->rgt));
+      if (0 == count($leafRows))
+      {
+        break; // no descendants left
+      }
+
+      $leaf = QubitInformationObject::getById($leafRows[0]->id);
+      $leaf->delete();
+    }
+
+    $root = QubitInformationObject::getById($rootId);
+    $root->delete();
   }
 
   // -------------------------------------------------------------------------
@@ -599,8 +874,36 @@ EOF;
     $criteria = new Criteria;
     $criteria->add(QubitInformationObject::IDENTIFIER, $data['identifier']);
     $criteria->add(QubitInformationObject::LEVEL_OF_DESCRIPTION_ID, sfConfig::get('app_drmc_lod_artwork_record_id'));
+    $artwork = QubitInformationObject::getOne($criteria);
 
-    if (null === $artwork = QubitInformationObject::getOne($criteria))
+    // Duplicate guard: adopt an existing artwork with the same title AND
+    // artist (e.g. a legacy binder:seed-demo row) instead of creating a
+    // second work document with a different identifier.
+    if (null === $artwork)
+    {
+      $criteria = new Criteria;
+      $criteria->addJoin(QubitInformationObject::ID, QubitInformationObjectI18n::ID);
+      $criteria->add(QubitInformationObjectI18n::TITLE, $data['title']);
+      $criteria->add(QubitInformationObjectI18n::CULTURE, 'en');
+      $criteria->add(QubitInformationObject::LEVEL_OF_DESCRIPTION_ID, sfConfig::get('app_drmc_lod_artwork_record_id'));
+      foreach (QubitInformationObject::get($criteria) as $candidate)
+      {
+        $rows = QubitPdo::fetchAll(
+          'SELECT COUNT(*) AS hits FROM event e
+             JOIN actor_i18n ai ON e.actor_id = ai.id AND ai.culture = ?
+            WHERE e.information_object_id = ? AND e.type_id = ? AND ai.authorized_form_of_name = ?',
+          array('en', $candidate->id, QubitTerm::CREATION_ID, $data['artist']));
+        if (0 < count($rows) && 0 < (int)$rows[0]->hits)
+        {
+          $artwork = $candidate;
+          $artwork->identifier = $data['identifier'];
+          $this->logSection('binder', 'Adopted existing work "'.$data['title'].'" (io '.$artwork->id.') -> identifier '.$data['identifier']);
+          break;
+        }
+      }
+    }
+
+    if (null === $artwork)
     {
       $artwork = new QubitInformationObject;
       $artwork->identifier = $data['identifier'];
@@ -762,10 +1065,15 @@ EOF;
       return;
     }
 
-    // AIP IO under the component
+    // AIP IO under the component. Match by title too: after the legacy
+    // merge a component can host several AIP IOs, and matching by
+    // parent+LOD alone could adopt the wrong one (and then duplicate its
+    // file IOs on re-runs).
     $criteria = new Criteria;
     $criteria->add(QubitInformationObject::PARENT_ID, $component->id);
     $criteria->add(QubitInformationObject::LEVEL_OF_DESCRIPTION_ID, sfConfig::get('app_drmc_lod_aip_id'));
+    $criteria->addJoin(QubitInformationObject::ID, QubitInformationObjectI18n::ID);
+    $criteria->add(QubitInformationObjectI18n::TITLE, $item['filename']);
     if (null === $aipIo = QubitInformationObject::getOne($criteria))
     {
       $aipIo = new QubitInformationObject;
