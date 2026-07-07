@@ -903,6 +903,25 @@ class arElasticSearchInformationObjectPdo
     }
   }
 
+  protected function getVocabularyProperties()
+  {
+    $sql  = 'SELECT
+                node.name,
+                i18n.value';
+    $sql .= ' FROM '.QubitProperty::TABLE_NAME.' node';
+    $sql .= ' JOIN '.QubitPropertyI18n::TABLE_NAME.' i18n
+                ON node.id = i18n.id';
+    $sql .= ' WHERE node.source_culture = i18n.culture
+                AND node.object_id = ?
+                AND node.scope = ?
+              ORDER BY node.name';
+
+    self::$statements['vocabularyProperties'] = self::$conn->prepare($sql);
+    self::$statements['vocabularyProperties']->execute(array($this->__get('id'), 'vocabulary'));
+
+    return self::$statements['vocabularyProperties']->fetchAll(PDO::FETCH_ASSOC);
+  }
+
   protected function getAips()
   {
     $sql  = 'SELECT
@@ -1188,6 +1207,15 @@ class arElasticSearchInformationObjectPdo
       && null !== $premisData = arElasticSearchPluginUtil::getPremisData($this->id, self::$conn))
     {
       $serialized['metsData'] = $premisData;
+    }
+
+    // Vocabulary alignment properties (RiC-O / schema.org / OWL), stored
+    // with scope 'vocabulary' by binder:align-vocabulary
+    foreach ($this->getVocabularyProperties() as $item)
+    {
+      $serialized['vocabulary'][] = array(
+        'name' => $item['name'],
+        'value' => $item['value']);
     }
 
     // TMS object

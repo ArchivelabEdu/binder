@@ -86,6 +86,10 @@
               <h3>Terms</h3>
               <div>{{ work.tms.terms }}</div>
             </div>
+            <div class="field" ng-repeat="(key, value) in work.tms.vocabulary">
+              <h3>{{ key }}</h3>
+              <div>{{ value }}</div>
+            </div>
           </div>
         </div>
 

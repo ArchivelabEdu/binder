@@ -93,6 +93,12 @@ class ApiInformationObjectsTmsAction extends QubitApiAction
     $this->addItemToArray($result, 'thumbnail', $this->getProperty('Thumbnail'));
     $this->addItemToArray($result, 'fullImage', $this->getProperty('FullImage'));
 
+    // Vocabulary alignment properties (binder:align-vocabulary)
+    foreach ($this->io->getProperties(null, 'vocabulary') as $property)
+    {
+      $result['vocabulary'][$property->name] = $property->getValue(array('sourceCulture' => true));
+    }
+
     $result['type'] = 'Object';
 
     // TODO: Description
@@ -145,6 +151,13 @@ class ApiInformationObjectsTmsAction extends QubitApiAction
     foreach ($this->io->getProperties(null, 'tms_attributes') as $property)
     {
       $this->addItemToArray($result, strtolower($property->name) . '_atom_counter_' . ++$counter, $property->value);
+    }
+
+    // Vocabulary alignment properties (binder:align-vocabulary) — rendered
+    // by the generic key-value list in the context browser sidebar
+    foreach ($this->io->getProperties(null, 'vocabulary') as $property)
+    {
+      $this->addItemToArray($result, $property->name, $property->getValue(array('sourceCulture' => true)));
     }
 
     $result['type'] = 'Component';
