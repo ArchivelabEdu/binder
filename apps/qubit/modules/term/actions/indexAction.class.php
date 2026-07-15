@@ -42,8 +42,10 @@ class TermIndexAction extends sfAction
       $this->forward404();
     }
 
-    // Check that this isn't the root
-    if (!isset($this->resource->parent))
+    // Check that this isn't the root term itself. (Terms seeded without a parent
+    // link — e.g. via the DRMC graph model / legacy add form — are still legitimate
+    // terms and must remain viewable, so guard on the root id, not parent presence.)
+    if (QubitTerm::ROOT_ID == $this->resource->id)
     {
       $this->forward404();
     }

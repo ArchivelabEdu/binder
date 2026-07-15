@@ -8,6 +8,7 @@
     <?php echo stylesheet_tag('/plugins/arDominionPlugin/css/main.css') ?>
     <?php echo javascript_include_tag('/plugins/arDrmcPlugin/frontend/dist/Binder.vendor.js') ?>
     <?php echo javascript_include_tag('/plugins/arDrmcPlugin/frontend/dist/Binder.app.js') ?>
+    <?php echo javascript_include_tag('/plugins/arDrmcPlugin/frontend/dist/dropdown-shim.js') ?>
   </head>
   <body ng-app="drmc" class="drmc" ng-controller="BodyCtrl">
 

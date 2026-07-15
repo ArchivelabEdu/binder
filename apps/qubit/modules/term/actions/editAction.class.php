@@ -60,8 +60,9 @@ class TermEditAction extends DefaultEditAction
         $this->forward404();
       }
 
-      // Check that this isn't the root
-      if (!isset($this->resource->parent))
+      // Check that this isn't the root term itself (guard on root id, not parent
+      // presence — see indexAction: parent-less non-root terms are legitimate here).
+      if (QubitTerm::ROOT_ID == $this->resource->id)
       {
         $this->forward404();
       }

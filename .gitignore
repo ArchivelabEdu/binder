@@ -17,3 +17,5 @@ plugins/arDominionPlugin/css/min.css
 plugins/arArchivesCanadaPlugin/css/min.css
 
 /npm-debug.log
+.DS_Store
+**/.DS_Store
