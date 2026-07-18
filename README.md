@@ -16,6 +16,22 @@
 
 > ⚙️ **브랜치 안내** — 부활 작업은 전부 **`spike/docker-revival`** 에 있습니다(현재 기본 브랜치). `qa/0.9.x` 는 원본 upstream과 동일한 미변경 기준선입니다.
 
+## 스크린샷
+
+부활 스택을 실제 구동한 화면입니다. 전체 세트(대시보드·작품·구현체 검색·컨텍스트 브라우저·택소노미 등)는 [`uploads/screenshot/`](uploads/screenshot) 폴더에 있습니다.
+
+**대시보드 (Dashboard)**
+
+![Dashboard](uploads/screenshot/screencapture-localhost-8090-drmc-2026-07-19-01_52_44.png)
+
+**작품 레코드 (Artwork records)**
+
+![Artwork records](uploads/screenshot/screencapture-localhost-8090-drmc-search-works-2026-07-19-01_54_51.png)
+
+**컨텍스트 브라우저 (Context browser)**
+
+![Context browser](uploads/screenshot/screencapture-localhost-8090-drmc-works-850-2026-07-19-01_52_07.png)
+
 ## 원본 Binder 소개 (원 저작자 기술)
 
 > Binder is an open source digital repository management application, designed to meet the needs and complex digital preservation requirements of museum collections. Binder was created by Artefactual Systems and the Museum of Modern Art.
