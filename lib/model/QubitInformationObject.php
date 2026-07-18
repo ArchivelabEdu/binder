@@ -1112,6 +1112,25 @@ class QubitInformationObject extends BaseInformationObject
     }
   }
 
+  /**
+   * Count the digital objects attached to strict descendants of this
+   * information object. Mirrors the imageflow component's thumbnail criteria
+   * (nested-set lft/rgt range + draft filtering) but returns the unlimited
+   * total, used to render the coverflow "Results 1 to N of TOTAL" label.
+   */
+  public function getDescendentDigitalObjectCount()
+  {
+    $criteria = new Criteria;
+    $criteria->addJoin(QubitInformationObject::ID, QubitDigitalObject::INFORMATION_OBJECT_ID);
+    $criteria->add(QubitInformationObject::LFT, $this->lft, Criteria::GREATER_THAN);
+    $criteria->add(QubitInformationObject::RGT, $this->rgt, Criteria::LESS_THAN);
+
+    // Hide drafts
+    $criteria = QubitAcl::addFilterDraftsCriteria($criteria);
+
+    return BasePeer::doCount($criteria)->fetchColumn(0);
+  }
+
   /****************
    Import methods
   *****************/

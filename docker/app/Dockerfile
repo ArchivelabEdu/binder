@@ -22,7 +22,7 @@ RUN set -eux; \
 # PHP extensions AtoM / Symfony 1 rely on.
 RUN set -eux; \
     docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/; \
-    docker-php-ext-install -j"$(nproc)" pdo_mysql mysqli xsl gd calendar sockets; \
+    docker-php-ext-install -j"$(nproc)" pdo_mysql mysqli xsl gd calendar sockets gettext; \
     docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu/; \
     docker-php-ext-install ldap
 
