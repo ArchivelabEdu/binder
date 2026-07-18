@@ -1,196 +1,84 @@
-# Binder
+# Binder (binder-classic) — 원본 Binder 부활 스파이크 · Phase 1
 
-## Deprecation Notice
+> **이 리포는 [Artefactual Systems](http://www.artefactual.com)와 [MoMA](http://moma.org)가 만든 원본 Binder(DRMC)의 포크입니다.**
+> 2015년경 개발이 중단된 원본 코드베이스를 **Docker로 부활**시켜 구동·검증한 **Phase 1 스파이크**이며, 원본의 저작권과 **AGPL-3.0** 라이선스를 그대로 승계합니다.
+> 현대화 신규 구현(**Phase 2·3**)은 원본과 소스코드를 공유하지 않는 별개 프로젝트 **[binder-next](https://github.com/ArchivelabEdu/binder-next)** 에 있습니다.
 
-This project is no longer being developed or maintained.
+![Binder logo](images/binder-logo.png)
 
-![Binder logo](/images/binder-logo.png)
+---
 
+## 이 리포는 무엇인가
 
-Binder is an open source digital repository management application, designed
-to meet the needs and complex digital preservation requirements of museum
-collections. Binder was created by
-<a href="http://www.artefactual.com">Artefactual Systems</a> and the
-<a href="http://moma.org">Museum of Modern Art</a>.
+- **원본 Binder** — Artefactual + MoMA가 개발한 오픈소스 디지털 리포지터리 관리 애플리케이션. 시간기반 미디어·본디지털(time-based media·born-digital) 미술품의 복합 보존 요구를 다루기 위해 **[Archivematica](https://www.archivematica.org)** 와 **[AtoM](https://www.accesstomemory.org)** 을 통합해 만들었습니다. 원 저작자가 **개발 중단(Deprecation)** 을 공지한 상태입니다.
+- **이 포크(binder-classic)** — 그 원본을 **Docker 컨테이너로 부활**시키고, Elasticsearch/Elastica·의존성 등 시간이 지나 깨진 부분을 고쳐 DRMC 시나리오로 실제 구동해 본 **타임박스 실현가능성 스파이크**입니다. "2015년 코드가 컨테이너에서 어디까지 뜨는가"를 실측하고, 현대화(binder-next)의 벤치마크·교훈을 얻는 것이 목표였습니다.
+- **결론: GO** — 로그인 → 대시보드 → 브라우즈·검색(패싯) → REST API 인증 → 실 Archivematica Storage Service 연동(AIP 다운로드·fixity 검사·복구·DIP 인제스트)까지 관통 검증했습니다. 상세 기록은 **[`SPIKE.md`](SPIKE.md)**.
 
-Binder aims to facilitate digital collections care, management, and
-preservation for time-based media and born-digital artworks and is built
-from integrating functionality of the
-[Archivematica](https://ww.archivematica.org) and
-[AtoM](https://www.accesstomemory.org) projects.
+> ⚙️ **브랜치 안내** — 부활 작업은 전부 **`spike/docker-revival`** 에 있습니다(현재 기본 브랜치). `qa/0.9.x` 는 원본 upstream과 동일한 미변경 기준선입니다.
 
-A presentation on Binder's functionality (Binder was formerly known as the
-DRMC during development) can be found here:
+## 원본 Binder 소개 (원 저작자 기술)
 
-* https://www.youtube.com/watch?v=HPebm5nh83o.
+> Binder is an open source digital repository management application, designed to meet the needs and complex digital preservation requirements of museum collections. Binder was created by Artefactual Systems and the Museum of Modern Art.
 
-Slides from a presentation at Code4LibBC 2014, including screenshots from the
-application, can be found here:
+- 기능 소개 영상(개발 중 명칭 "DRMC"): <https://www.youtube.com/watch?v=HPebm5nh83o>
+- Code4LibBC 2014 발표 슬라이드: <http://www.slideshare.net/accesstomemory/introducing-the-drmc>
+- 원본 문서: <http://binder.readthedocs.org/en/latest/>
 
-* http://www.slideshare.net/accesstomemory/introducing-the-drmc
+## 이 포크가 변경한 것 (원본 대비)
 
-**Further resources**
+`qa/0.9.x`(원본과 동일) 대비 **`spike/docker-revival`** 은 **52개 파일**(추가 35 · 수정 17)이 다릅니다. 범주별 요약:
 
-* <a href="http://binder.readthedocs.org/en/latest/">Binder documentation</a>
-* <a href="https://groups.google.com/forum/#!forum/binder-repository">Binder User Forum</a>
+| 범주 | 내용 |
+|---|---|
+| **Docker 부활 스택** | `docker/` — compose·Dockerfile·nginx·entrypoint·php.ini, Storage Service bootstrap, fake-DIP 빌드/디포짓, fixity 스캔, 썸네일 생성 스크립트 |
+| **ES 5.6 / Elastica 5.x API 깨짐 수정** | `arElasticSearchInformationObjectPdo` + REST API 액션 6종(actors/aips/fixity/informationobjects browse·files·tms, recover-request) |
+| **Archivematica Storage Service 실연동** | SS v0.24 컨테이너 + bootstrap, AIP 다운로드·fixity 검사·복구·인제스트(DIP) 관통 검증 |
+| **DRMC 데모·시드 태스크** | `lib/task/binder/arDrmc*` — 어휘 정렬(RiC-O·schema.org), 자산 부착, 데모 시드, PDF 정확 데이터 시드 |
+| **DRMC 프론트·UI** | arDrmcPlugin(전체화면·작품 뷰), arDominionPlugin CSS(컨텍스트 브라우저·변수), Font Awesome 3.2.1 벤더링 |
+| **nginx DRMC-only 게이팅** | 레거시 AtoM 라우트 404(default-deny; `/drmc`·`/api`·정적 자산만 노출) |
+| **문서** | `SPIKE.md`, `docs-spike/`(api-sweep·es56-audit·seed-demo-spec), Phase 1 설계 스펙 |
 
-# Table of contents
+전체 diff: [`qa/0.9.x` → `spike/docker-revival` 비교](https://github.com/ArchivelabEdu/binder-classic/compare/qa/0.9.x...spike/docker-revival).
 
-* [Installation](#installation)
-* [Configuration](#configuration)
-* [Contributing](#contributing)
-* [Community](#community)
-* [Versioning](#versioning)
-* [Creators](#creators)
-* [Copyright and licenses](#copyright)
+## 실행 방법 (부활 스택)
 
+> 전제: Docker + docker compose. 레거시 amd64 이미지를 에뮬레이션으로 구동합니다(Apple Silicon 검증). 자세한 순서·트러블슈팅·검증 기록은 **[`SPIKE.md`](SPIKE.md)**.
 
-## Installation
+```bash
+cd docker && docker compose up -d --build
 
-**IMPORTANT**
+# 스키마 초기화 + 관리자(demo) 생성
+docker compose exec app sh -c 'cd /app && php symfony tools:purge --no-confirmation \
+  --title=Binder --description="Binder spike" --username=demo \
+  --email=demo@example.com --password=demo'
 
-At this time, Binder is **not** ready for use in a production environment, and
-still requires further developement for the code to function in a development
-environment.
+# DRMC 데이터 부트스트랩 + 검색 색인
+docker compose exec app sh -c 'cd /app && php symfony binder:bootstrap && php symfony search:populate'
 
-We have added further notes about the current status of the project to our
-documentation, here:
+# 데모 컬렉션 시드(선택): 작품·컴포넌트·가짜 AIP
+docker compose exec app sh -c 'cd /app && php symfony binder:seed-demo'
+```
 
-* http://binder.readthedocs.org/en/latest/user-manual/overview/project-status.html
+브라우저에서 **<http://localhost:8090/drmc>** → **`demo@example.com` / `demo`** 로 로그인.
+(로그인은 이메일 컬럼으로 인증하므로 아이디가 아닌 **이메일**을 입력하세요 — SPIKE.md #7.)
 
-We have created some installation instructions using
-[Vagrant](https://www.vagrantup.com/), so that developers can work with the
-code. Note that this will **not** lead to a functioning installation at
-present - but we hope that community developers might help us tackle some of
-the isues outlined by our developers as part of the installation notes. See
-them here:
+## binder-next와의 관계
 
-* https://gist.github.com/sevein/e0b1d036721435add3cd
+| | binder-classic (이 리포) | [binder-next](https://github.com/ArchivelabEdu/binder-next) |
+|---|---|---|
+| Phase | **Phase 1** — 원본 부활 스파이크 | **Phase 2·3** — 현대화 + 지식 그래프 허브 |
+| 스택 | 레거시 PHP/Symfony(AtoM 계열) | TypeScript 모노레포(Next.js·PostgreSQL·Drizzle) |
+| 라이선스 | AGPL-3.0(원본 승계) | 별도(원본과 소스 무공유) |
+| 관계 | 벤치마크·교훈의 원천 | 이 스파이크에서 얻은 **개념 일부만** 참고한 별개 신규 구현 |
 
-## Configuration
+## 라이선스 / 저작권
 
-**Project documentation:**
+- **코드: AGPL-3.0** — 원본 라이선스를 승계하며, 이 포크의 수정분도 AGPL-3.0으로 배포됩니다. 원문: [`LICENSE`](LICENSE).
+- **문서:** 원본은 Creative Commons.
+- **저작권:** Artefactual Systems Inc. 및 The Museum of Modern Art. ([`COPYRIGHT`](COPYRIGHT))
+- 이 리포는 원본의 **수정된 포크**이며, 원 저작권·라이선스 표시를 보존합니다.
 
-* http://binder.readthedocs.org/en/latest/
+## Creators (원본)
 
-### Storage service client configuration
-
-The Archivematica storage service handles storage of AIPs. Binder interfaces
-with it to allow the downloading of AIPs/AIP files and the recovery of AIPs.
-
-To interface with the Archivematica Storage Service, define these environment
-variables (e.g. in your PHP pool):
-
-    env[ARCHIVEMATICA_SS_HOST] = "127.0.0.1"
-    env[ARCHIVEMATICA_SS_PORT] = "8000"
-    env[ARCHIVEMATICA_SS_PIPELINE_UUID] = "6117c5fa-d63f-44d8-9920-89468c68683e"
-    env[ARCHIVEMATICA_SS_USER] = "foo"
-    env[ARCHIVEMATICA_SS_API_KEY] = "bar"
-
-The host and port will default to "127.0.0.1" and "8000" respectively, but the
-pipeline UUID, the user and the api key are mandatory and required for both, the
-CLI and web environments.
-
-### LDAP configuration
-
-Use of LDAP authentication requires installing php5-ldap and making sure that
-the module is being loaded.
-
-You'll also need to define the following environment variables (e.g. in your
-PHP pool):
-
-    env[ATOM_DRMC_LDAP_ADMIN_USERNAME] = "foo"
-    env[ATOM_DRMC_LDAP_ADMIN_PASSWORD] = "bar"
-
-Next create apps/qubit/config/factories.yml if it doesn't exist yet (this file
-is not tracked by git) with the following contents:
-
-    all:
-      user:
-        class: adLdapUser
-
-Also create apps/qubit/config/app.yml if it doesn't exist yet (this file is
-not tracked by git) with the following contents:
-
-    all:
-      ldap_account_suffix: "@example.com"
-      ldap_base_dn: DC=EXAMPLE,DC=COM
-      ldap_domain_controllers: ad01.example.com
-      ldap_user_group: CN=AtoM users,OU=Archivists,OU=Groups,DC=EXAMPLE,DC=COM
-
-Finally clear the Symfony cache and restart your pool.
-
-NOTE: This application will check if existing LDAP users are member of the group
-defined in ldap_user_group.
-
-### Storage service AIP recovery process and configuration
-
-AIP recovery allows a Binder administrator to replace a corrupt version
-of a stored AIP with a correct version (restored from a backup, for example).
-
-The AIP recovery process involves copying the recovered version of the AIP
-into a dedicated recovery directory accessible by the storage service. You can
-determine the location of this directory by clicking "Locations" in the storage
-service administration web interface and finding the path assocated with AIP
-recovery.
-
-The Binder's AIP recovery integration requires the storage service be configured
-to report back to Binder when a storage service administrator has made a
-decision about an AIP restore request (approving or rejecting it) or if an
-approved AIP restore request has failed.
-
-To configure the storage service to report AIP restore progress back to
-Binder, click "Administration" in the storage service administration web
-interface enter the following into the field labelled "Recover request
-notification url" (replacing the Binder server address placeholder with your
-own Binder server's address):
-
-  http://<Binder server address>/api/recover/results
-
-For authentication purposes, you'll also need to enter a valid Binder username
-and password into the two fields below it. Click "Save" when you're done.
-
-## Contributing
-
-Please read through our <a href="https://github.com/artefactual/binder/blob/master/CONTRIBUTING">contributing guidelines</a>.
-Included are directions for opening issues, coding standards, and notes on
-development.
-
-Editor preferences are available in the <a href="https://github.com/artefactual/binder/blob/master/.editorconfig">editor config</a>
-for easy use in common text editors. Read more and download plugins at
-http://editorconfig.org.
-
-Binder was built on [Access to Memory](https://www.accesstomemory.org) (AtoM)
-which is an application built using the Symfony framework.
-
-See <a href='http://symfony-project.com'>http://symfony-project.com</a> for additional instructions on installing and<br />configuring a Symfony application.
-
-
-## Community
-
-Keep track of development and community news.
-
-* <a href="http://binder.readthedocs.org/en/latest/">Binder documentation</a>
-* <a href="https://groups.google.com/forum/#!forum/binder-repository">Binder User Forum</a>
-* Follow [@accesstomemory](https://twitter.com/accesstomemory) on Twitter.
-* Chat with us in IRC. On the [OFTC network](http://www.oftc.net), in the #openarchives
-  channel.
-
-
-## Versioning
-
-For transparency into our release cycle and in striving to maintain backward
-compatibility, Binder is maintained under the [Semantic Versioning guidelines](http://www.semver.org).
-
-Sometimes we screw up, but we'll adhere to those rules whenever possible.
-
-## Creators
-
-* [Artefactual Systems Inc](http://www.artefactual.com)
-* MoMA - [The Museum of Modern Art](http://moma.org)
-
-
-## Copyright and license
-
-Code and documentation copyright Artefactual Systems Inc. Code released under
-the AGPLv3 license. Docs released under Creative Commons.
+- [Artefactual Systems Inc](http://www.artefactual.com)
+- [The Museum of Modern Art (MoMA)](http://moma.org)
